@@ -65,7 +65,7 @@
                 <manifest>
                 <addClasspath>true</addClasspath>
                     <mainClass>
-                        mk.itzone.kafkastream.kafkastreamsample.WorldCount
+                        kafkastreamssample.WorldCountApp
                     </mainClass>
                 </manifest>
                 </archive>

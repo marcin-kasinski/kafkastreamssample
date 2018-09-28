@@ -1,4 +1,4 @@
-package kafkastreamssample;
+package mk.itzone.kafkastream.kafkastreamssample;
 
 
 
@@ -16,6 +16,8 @@ import org.apache.kafka.streams.test.OutputVerifier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import mk.itzone.kafkastream.kafkastreamssample.WordCountApp;
 
 import java.util.Properties;
 

@@ -1,4 +1,4 @@
-package kafkastreamssample;
+package mk.itzone.kafkastream.kafkastreamssample;
 
 
 
