@@ -2,6 +2,7 @@ package mk.itzone.kafkastreams.kafkastreamssample;
 
 
 //import io.confluent.common.utils.TestUtils;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.serialization.Deserializer;
@@ -221,7 +222,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, "c:\\temp\\kafka\\");
 
 
-    streamsConfiguration.put("security.protocol", "SSL");
+    streamsConfiguration.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
     streamsConfiguration.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "server.truststore.jks");
     streamsConfiguration.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, "secret");
     streamsConfiguration.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, "client.jks");
