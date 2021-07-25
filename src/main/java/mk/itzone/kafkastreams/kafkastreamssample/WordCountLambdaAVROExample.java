@@ -4,13 +4,22 @@ package mk.itzone.kafkastreams.kafkastreamssample;
 //import io.confluent.common.utils.TestUtils;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.SslConfigs;
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
+import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler;
 import org.apache.kafka.streams.kstream.*;
 
+import mk.itzone.kafkastreams.avro.TicketSale;
+
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
@@ -48,7 +57,7 @@ import java.util.regex.Pattern;
  * Once packaged you can then run:
  * <pre>
  * {@code
- * $ java -cp target/kafka-streams-examples-6.2.0-standalone.jar io.confluent.examples.streams.WordCountLambdaExample
+ * $ java -cp target/kafka-streams-examples-6.2.0-standalone.jar io.confluent.examples.streams.WordCountLambdaAVROExample
  * }
  * </pre>
  * 4) Write some input data to the source topic "streams-plaintext-input" (e.g. via {@code kafka-console-producer}).
@@ -95,20 +104,35 @@ import java.util.regex.Pattern;
  * 6) Once you're done with your experiments, you can stop this example via {@code Ctrl-C}. If needed,
  * also stop the Kafka broker ({@code Ctrl-C}), and only then stop the ZooKeeper instance (`{@code Ctrl-C}).
  */
-public class WordCountLambdaExample {
+public class WordCountLambdaAVROExample {
 
   static final String inputTopic = "kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev";
   static final String outputTopic = "products.ProductSubgroup-dev";
 
   /*
 
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","sale_ts":"2019-07-18T10:00:00Z","ticket_total_value":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","sale_ts":"2019-07-18T10:01:00Z","ticket_total_value":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
+{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}
+{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}
+{"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":12}
+{"title":"Die Hard","salets":"2019-07-18T10:01:36Z","tickettotalvalue":24}
+{"title":"The Godfather","salets":"2019-07-18T10:02:00Z","tickettotalvalue":18}
+{"title":"The Big Lebowski","salets":"2019-07-18T11:03:21Z","tickettotalvalue":12}
+{"title":"The Big Lebowski","salets":"2019-07-18T11:03:50Z","tickettotalvalue":12}
+{"title":"The Godfather","salets":"2019-07-18T11:40:00Z","tickettotalvalue":36}
+{"title":"The Godfather","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
+{"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
+
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
 
 
 ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true --property value.deserializer=org.apache.kafka.common.serialization.LongDeserializer --topic products.ProductSubgroup-dev"
 
-mvn clean install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+mvn clean generate-sources install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSHOT-jar-with-dependencies.jar
+
+mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsample-0.0.1-SNAPSHOT-jar-with-dependencies.jar mk.itzone.kafkastreams.kafkastreamssample.WordCountLambdaAVROExample
+
 
    */
   public static void main(final String[] args) {
@@ -160,9 +184,17 @@ mvn clean install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSH
     streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "wordcount-lambda-example-client");
     // Where to find Kafka broker(s).
     streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+
+
+    streamsConfiguration.put(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, LogAndContinueExceptionHandler.class.getName());
+
+
+
+
+
     // Specify default (de)serializers for record keys and for record values.
-    streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+//    streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+//    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
     // Records should be flushed every 10 seconds. This is less than the default
     // in order to keep this example interactive.
     streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 10 * 1000);
@@ -187,6 +219,16 @@ mvn clean install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSH
     return streamsConfiguration;
   }
 
+/*
+  private SpecificAvroSerde<TicketSale> ticketSaleSerde(final Properties allProps) {
+    final SpecificAvroSerde<TicketSale> serde = new SpecificAvroSerde<>();
+    Map<String, String> config = (Map)allProps;
+    serde.configure(config, false);
+    return serde;
+  }
+
+*/
+
   /**
    * Define the processing topology for Word Count.
    *
@@ -196,31 +238,65 @@ mvn clean install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSH
     // Construct a `KStream` from the input topic "streams-plaintext-input", where message values
     // represent lines of text (for the sake of this example, we ignore whatever may be stored
     // in the message keys).  The default key and value serdes will be used.
-    final KStream<String, String> textLines = builder.stream(inputTopic);
+//    final KStream<String, String> textLines = builder.stream(inputTopic);
+
+
+
+    // TODO: the following can be removed with a serialization factory
+    Map<String, Object> serdeProps = new HashMap<>();
+    serdeProps.put("JsonPOJOClass", TicketSale.class);
+
+
+    final Serializer<TicketSale> ticketSaleSerializer = new JsonPOJOSerializer<>();
+    ticketSaleSerializer.configure(serdeProps, false);
+
+    final Deserializer<TicketSale> ticketSaleDeserializer = new JsonPOJODeserializer<>();
+    ticketSaleDeserializer.configure(serdeProps, false);
+
+
+
+    final Serde<TicketSale> ticketSaleSerde = Serdes.serdeFrom(ticketSaleSerializer, ticketSaleDeserializer);
+
+
+    final KStream<String, TicketSale> textLines =
+
+            builder.stream(inputTopic,
+                    Consumed.with(
+                            Serdes.String(),
+                            ticketSaleSerde)
+            );
+
+
 
     final Pattern pattern = Pattern.compile("\\W+", Pattern.UNICODE_CHARACTER_CLASS);
-
 
     final KTable<String, Long> wordCounts = textLines
             // Split each text line, by whitespace, into words.  The text lines are the record
             // values, i.e. we can ignore whatever data is in the record keys and thus invoke
             // `flatMapValues()` instead of the more generic `flatMap()`.
-            .flatMapValues(value -> Arrays.asList(pattern.split(value.toLowerCase())))
-
+//            .flatMapValues(value -> Arrays.asList(pattern.split(value.toLowerCase())))
+// Set key to title and value to ticket value
+            .map((k, v) -> new KeyValue<>(v.getTitle(), v.getTickettotalvalue()))
             .peek((key, value) -> System.out.println("kStream : key={"+key+"}, value={"+value+"}"))
             // Group the split data by word so that we can subsequently count the occurrences per word.
             // This step re-keys (re-partitions) the input data, with the new record key being the words.
             // Note: No need to specify explicit serdes because the resulting key and value types
             // (String and String) match the application's default serdes.
 
-        .groupBy((keyIgnored, word) -> word)
-            // Count the occurrences of each word (record key).
-            .count();
+            // Group by title
+            .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
+//            .reduce(Integer::sum);
 
+//        .groupBy((keyIgnored, word) -> word)
+            // Count the occurrences of each word (record key).
+//            .count();
+            // Apply SUM aggregation
+            .reduce(Long::sum);
 
 
     // Write the `KTable<String, Long>` to the output topic.
-    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
+    wordCounts
+            .toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
 //    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.String()));
   }
 }

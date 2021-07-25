@@ -1,0 +1,10 @@
+{
+  "namespace": "mk.itzone.kafkastreams.avro",
+  "type": "record",
+  "name": "TicketSale",
+  "fields": [
+    {"name": "title", "type": "string"},
+    {"name": "salets", "type": "string"},
+    {"name": "tickettotalvalue", "type": "long"}
+  ]
+}
