@@ -116,6 +116,7 @@ public class WordCountLambdaAVROExample {
 {"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":12}
 {"title":"Die Hard","salets":"2019-07-18T10:01:36Z","tickettotalvalue":24}
 {"title":"The Godfather","salets":"2019-07-18T10:02:00Z","tickettotalvalue":18}
+{"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
 {"title":"The Big Lebowski","salets":"2019-07-18T11:03:21Z","tickettotalvalue":12}
 {"title":"The Big Lebowski","salets":"2019-07-18T11:03:50Z","tickettotalvalue":12}
 {"title":"The Godfather","salets":"2019-07-18T11:40:00Z","tickettotalvalue":36}
