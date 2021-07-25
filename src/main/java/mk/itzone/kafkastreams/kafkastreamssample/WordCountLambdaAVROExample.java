@@ -8,19 +8,18 @@ import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.common.serialization.Serializer;
-import org.apache.kafka.streams.KafkaStreams;
-import org.apache.kafka.streams.KeyValue;
-import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.streams.StreamsConfig;
+import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler;
 import org.apache.kafka.streams.kstream.*;
 
 import mk.itzone.kafkastreams.avro.TicketSale;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
 
 /**
@@ -111,7 +110,7 @@ public class WordCountLambdaAVROExample {
 
   /*
 
-{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}
+
 {"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}
 {"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":12}
 {"title":"Die Hard","salets":"2019-07-18T10:01:36Z","tickettotalvalue":24}
@@ -122,6 +121,10 @@ public class WordCountLambdaAVROExample {
 {"title":"The Godfather","salets":"2019-07-18T11:40:00Z","tickettotalvalue":36}
 {"title":"The Godfather","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
 {"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
+
+
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
 
 
 ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
@@ -161,11 +164,19 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     streams.cleanUp();
     System.out.println("Cleanup end");
 
+    final CountDownLatch latch = new CountDownLatch(1);
+    // Attach shutdown handler to catch Control-C.
+    Runtime.getRuntime().addShutdownHook(new Thread("streams-shutdown-hook") {
+      @Override
+      public void run() {
+        streams.close(Duration.ofSeconds(5));
+        latch.countDown();
+      }
+    });
+
     // Now run the processing topology via `start()` to begin processing its input data.
     streams.start();
 
-    // Add shutdown hook to respond to SIGTERM and gracefully close the Streams application.
-    Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
   }
 
   /**
@@ -185,6 +196,8 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "wordcount-lambda-example-client");
     // Where to find Kafka broker(s).
     streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+    streamsConfiguration.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, "2");
+
 
 
     streamsConfiguration.put(StreamsConfig.DEFAULT_DESERIALIZATION_EXCEPTION_HANDLER_CLASS_CONFIG, LogAndContinueExceptionHandler.class.getName());
@@ -259,19 +272,18 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     final Serde<TicketSale> ticketSaleSerde = Serdes.serdeFrom(ticketSaleSerializer, ticketSaleDeserializer);
 
 
-    final KStream<String, TicketSale> textLines =
+//    final KStream<String, TicketSale> textLines =
 
             builder.stream(inputTopic,
                     Consumed.with(
                             Serdes.String(),
                             ticketSaleSerde)
-            );
+            )
 
 
 
-    final Pattern pattern = Pattern.compile("\\W+", Pattern.UNICODE_CHARACTER_CLASS);
 
-    final KTable<String, Long> wordCounts = textLines
+//    final KTable<String, Long> wordCounts = textLines
             // Split each text line, by whitespace, into words.  The text lines are the record
             // values, i.e. we can ignore whatever data is in the record keys and thus invoke
             // `flatMapValues()` instead of the more generic `flatMap()`.
@@ -292,11 +304,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
             // Count the occurrences of each word (record key).
 //            .count();
             // Apply SUM aggregation
-            .reduce(Long::sum);
-
-
-    // Write the `KTable<String, Long>` to the output topic.
-    wordCounts
+            .reduce(Long::sum)
             .toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
 //    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.String()));
   }
