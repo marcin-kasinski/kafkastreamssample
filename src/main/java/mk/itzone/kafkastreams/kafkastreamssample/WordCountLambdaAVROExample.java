@@ -16,10 +16,7 @@ import org.apache.kafka.streams.kstream.*;
 import mk.itzone.kafkastreams.avro.TicketSale;
 
 import java.time.Duration;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
 
@@ -106,14 +103,16 @@ import java.util.regex.Pattern;
  */
 public class WordCountLambdaAVROExample {
 
-  static final String inputTopic = "kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev";
-  static final String outputTopic = "products.ProductSubgroup-dev";
+  static final String inputTopic = "mkin";
+  static final String outputTopic = "mkout";
 
   /*
 
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
-{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}
-{"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":12}
+
+{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":2}
+{"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":4}
 {"title":"Die Hard","salets":"2019-07-18T10:01:36Z","tickettotalvalue":24}
 {"title":"The Godfather","salets":"2019-07-18T10:02:00Z","tickettotalvalue":18}
 {"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
@@ -122,17 +121,17 @@ public class WordCountLambdaAVROExample {
 {"title":"The Godfather","salets":"2019-07-18T11:40:00Z","tickettotalvalue":36}
 {"title":"The Godfather","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
 {"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
+{"title":"AAA","salets":"2019-07-18T11:40:09Z","tickettotalvalue":1}
+{"title":"BBB","salets":"2019-07-18T11:40:09Z","tickettotalvalue":4}
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
 
-
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
-
-
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic kafkaconnect-edenserver.FAK_ADMIN.PODGRUPA-dev"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:00:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
 
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true --property value.deserializer=org.apache.kafka.common.serialization.LongDeserializer --topic products.ProductSubgroup-dev"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true --property value.deserializer=org.apache.kafka.common.serialization.LongDeserializer --topic mkout"
 
 mvn clean generate-sources install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
@@ -273,18 +272,15 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     final Serde<TicketSale> ticketSaleSerde = Serdes.serdeFrom(ticketSaleSerializer, ticketSaleDeserializer);
 
 
-//    final KStream<String, TicketSale> textLines =
+    final KStream<String, TicketSale> textLines =
 
             builder.stream(inputTopic,
                     Consumed.with(
                             Serdes.String(),
                             ticketSaleSerde)
-            )
+            );
 
-
-
-
-//    final KTable<String, Long> wordCounts = textLines
+    final KTable<String, Long> wordCounts = textLines
             // Split each text line, by whitespace, into words.  The text lines are the record
             // values, i.e. we can ignore whatever data is in the record keys and thus invoke
             // `flatMapValues()` instead of the more generic `flatMap()`.
@@ -294,6 +290,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
             .peek((key, value) -> System.out.println("kStream : key={"+key+"}, value={"+value+"}"))
             // Group the split data by word so that we can subsequently count the occurrences per word.
             // This step re-keys (re-partitions) the input data, with the new record key being the words.
+
             // Note: No need to specify explicit serdes because the resulting key and value types
             // (String and String) match the application's default serdes.
 
@@ -305,8 +302,44 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
             // Count the occurrences of each word (record key).
 //            .count();
             // Apply SUM aggregation
+            .reduce(Long::sum);
+
+    //        .toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
+    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
+
+
+    KGroupedStream<String, Long> grouped = textLines
+            // Split each text line, by whitespace, into words.  The text lines are the record
+            // values, i.e. we can ignore whatever data is in the record keys and thus invoke
+            // `flatMapValues()` instead of the more generic `flatMap()`.
+//            .flatMapValues(value -> Arrays.asList(pattern.split(value.toLowerCase())))
+// Set key to title and value to ticket value
+            .map((k, v) -> new KeyValue<>(v.getTitle(), v.getTickettotalvalue()))
+            .peek((key, value) -> System.out.println("KGroupedStream : key={"+key+"}, value={"+value+"}"))
+            // Group the split data by word so that we can subsequently count the occurrences per word.
+            // This step re-keys (re-partitions) the input data, with the new record key being the words.
+
+            // Note: No need to specify explicit serdes because the resulting key and value types
+            // (String and String) match the application's default serdes.
+
+            // Group by title
+            .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()));
+//            .reduce(Integer::sum);
+
+//        .groupBy((keyIgnored, word) -> word)
+            // Count the occurrences of each word (record key).
+//            .count();
+            // Apply SUM aggregation
+
+    grouped
+            .windowedBy(TimeWindows.of(Duration.ofMinutes(1)).grace(Duration.ofMillis(0)))
+//            .count()
             .reduce(Long::sum)
-            .toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
-//    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.String()));
+            .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()))
+            //.filter((windowedUserId, count) -> count < 3)
+            .toStream()
+//            .peek((key, value) -> System.out.println("KGroupedStream2 : key={"+key+"}, value={"+value+"}"));
+            .foreach((windowedUserId, count) -> System.out.println(new Date()+"ZZZZZZZZZZZZZZZZZZZZ "+windowedUserId.window()+" "+ windowedUserId.key()+" "+count));
+
   }
 }
