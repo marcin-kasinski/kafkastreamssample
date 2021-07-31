@@ -1,0 +1,11 @@
+{
+  "namespace": "mk.itzone.kafkastreams.avro",
+  "type": "record",
+  "name": "RatedMovie",
+  "fields": [
+    {"name": "id", "type": "long"},
+    {"name": "title", "type": "string"},
+    {"name": "releaseyear", "type": "int"},
+    {"name": "rating", "type": "double"}
+  ]
+}

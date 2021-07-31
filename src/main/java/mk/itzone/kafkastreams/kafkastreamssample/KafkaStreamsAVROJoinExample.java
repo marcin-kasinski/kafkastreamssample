@@ -2,6 +2,13 @@ package mk.itzone.kafkastreams.kafkastreamssample;
 
 
 //import io.confluent.common.utils.TestUtils;
+//import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+//import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
+//import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
+import mk.itzone.kafkastreams.avro.Movie;
+import mk.itzone.kafkastreams.avro.RatedMovie;
+import mk.itzone.kafkastreams.avro.Rating;
 import mk.itzone.kafkastreams.avro.TicketSale;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -14,11 +21,13 @@ import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.errors.LogAndContinueExceptionHandler;
 import org.apache.kafka.streams.kstream.*;
 
+//import mk.itzone.kafkastreams.avro.TicketSale;
 
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Pattern;
+//import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 
 /**
  * Demonstrates, using the high-level KStream DSL, how to implement the WordCount program that
@@ -101,28 +110,47 @@ import java.util.regex.Pattern;
  * 6) Once you're done with your experiments, you can stop this example via {@code Ctrl-C}. If needed,
  * also stop the Kafka broker ({@code Ctrl-C}), and only then stop the ZooKeeper instance (`{@code Ctrl-C}).
  */
-public class WordCountLambdaAVROExample {
+public class KafkaStreamsAVROJoinExample {
 
-  static final String inputTopic = "mkin";
-  static final String outputTopic = "mkout";
+  abstract class IgnoreSchemaProperty
+  {
+    // You have to use the correct package for JsonIgnore,
+    // fasterxml or codehaus
+    @JsonIgnore
+    abstract void getSchema();
+  }
+
+  // mkin2
+  static final String movieTopic = "movieTopic";
+  static final String rekeyedMovieTopic = "rekeyedMovieTopic";
+  static final String ratedMoviesTopic = "ratedMoviesTopic";
+  static final String ratingTopic = "ratingTopic";
+  static final String outputTopic = "mkout2";
 
   /*
 
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --create replication-factor 2 partitions 6 --topic movieTopic" && \
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --create replication-factor 2 partitions 6 --topic rekeyedMovieTopic" && \
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --create replication-factor 2 partitions 6 --topic ratedMoviesTopic" && \
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --create replication-factor 2 partitions 6 --topic ratingTopic" && \
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --create replication-factor 2 partitions 6 --topic mkout2"
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-topics.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --command-config /usr/local/kafka/config/admin.properties --list"
 
 
-{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":2}
-{"title":"The Godfather","salets":"2019-07-18T10:01:31Z","tickettotalvalue":4}
-{"title":"Die Hard","salets":"2019-07-18T10:01:36Z","tickettotalvalue":24}
-{"title":"The Godfather","salets":"2019-07-18T10:02:00Z","tickettotalvalue":18}
-{"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
-{"title":"The Big Lebowski","salets":"2019-07-18T11:03:21Z","tickettotalvalue":12}
-{"title":"The Big Lebowski","salets":"2019-07-18T11:03:50Z","tickettotalvalue":12}
-{"title":"The Godfather","salets":"2019-07-18T11:40:00Z","tickettotalvalue":36}
-{"title":"The Godfather","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
-{"title":"ZZZ","salets":"2019-07-18T11:40:09Z","tickettotalvalue":18}
-{"title":"AAA","salets":"2019-07-18T11:40:09Z","tickettotalvalue":1}
-{"title":"BBB","salets":"2019-07-18T11:40:09Z","tickettotalvalue":4}
+#ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --property key.schema='{"type":"string"}' --property value.schema="$(< /opt/app/schema/movie.avsc) --topic movieTopic"
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic movieTopic"
+
+
+MOVIES
+
+{"id": 294, "title": "Die Hard", "releaseyear": 1988}
+{"id": 354, "title": "Tree of Life", "releaseyear": 2011}
+{"id": 782, "title": "A Walk in the Clouds", "releaseyear": 1995}
+{"id": 128, "title": "The Big Lebowski", "releaseyear": 1998}
+{"id": 780, "title": "Super Mario Bros.", "releaseyear": 1993}
+
 
 ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
@@ -147,7 +175,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
     // Define the processing topology of the Streams application.
     final StreamsBuilder builder = new StreamsBuilder();
-    createWordCountStream(builder);
+    createWordCountStream(streamsConfiguration,builder);
     final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
 
     // Always (and unconditionally) clean local state prior to starting the processing topology.
@@ -192,8 +220,8 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     final Properties streamsConfiguration = new Properties();
     // Give the Streams application a unique name.  The name must be unique in the Kafka cluster
     // against which the application is run.
-    streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, "wordcount-lambda-example");
-    streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "wordcount-lambda-example-client");
+    streamsConfiguration.put(StreamsConfig.APPLICATION_ID_CONFIG, "join-lambda-example");
+    streamsConfiguration.put(StreamsConfig.CLIENT_ID_CONFIG, "join-lambda-example-client");
     // Where to find Kafka broker(s).
     streamsConfiguration.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
     streamsConfiguration.put(StreamsConfig.REPLICATION_FACTOR_CONFIG, "2");
@@ -208,7 +236,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
     // Specify default (de)serializers for record keys and for record values.
 //    streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-//    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+//    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
     // Records should be flushed every 10 seconds. This is less than the default
     // in order to keep this example interactive.
     streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 10 * 1000);
@@ -219,6 +247,9 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     streamsConfiguration.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
     // Use a temporary directory for storing state, which will be automatically removed after the test.
     streamsConfiguration.put(StreamsConfig.STATE_DIR_CONFIG, "c:\\temp\\kafka\\");
+
+
+//    streamsConfiguration.put(AbstractKafkaAvroSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
 
 
     streamsConfiguration.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
@@ -248,7 +279,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
    *
    * @param builder StreamsBuilder to use
    */
-  static void createWordCountStream(final StreamsBuilder builder) {
+  static void createWordCountStream(Properties allProps,final StreamsBuilder builder) {
     // Construct a `KStream` from the input topic "streams-plaintext-input", where message values
     // represent lines of text (for the sake of this example, we ignore whatever may be stored
     // in the message keys).  The default key and value serdes will be used.
@@ -256,89 +287,78 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
 
 
-    // TODO: the following can be removed with a serialization factory
+
+
     Map<String, Object> serdeProps = new HashMap<>();
-    serdeProps.put("JsonPOJOClass", TicketSale.class);
-
-    final Serializer<TicketSale> ticketSaleSerializer = new JsonPOJOSerializer<>();
-    ticketSaleSerializer.configure(serdeProps, false);
-
-    final Deserializer<TicketSale> ticketSaleDeserializer = new JsonPOJODeserializer<>();
-    ticketSaleDeserializer.configure(serdeProps, false);
+    serdeProps.put("JsonPOJOClass", Movie2.class);
 
 
+    final Serializer<Movie2> movieSerializer = new JsonPOJOSerializer<>();
+    movieSerializer.configure(serdeProps, false);
 
-    final Serde<TicketSale> ticketSaleSerde = Serdes.serdeFrom(ticketSaleSerializer, ticketSaleDeserializer);
+    final Deserializer<Movie2> movieDeserializer = new JsonPOJODeserializer<>();
+    movieDeserializer.configure(serdeProps, false);
 
+    final Serde<Movie2> movieSerde = Serdes.serdeFrom(movieSerializer, movieDeserializer);
 
-    final KStream<String, TicketSale> textLines =
+    MovieRatingJoiner joiner = new MovieRatingJoiner();
 
-            builder.stream(inputTopic,
+/*
+    // When you want to override serdes explicitly/selectively
+    final Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url",
+            "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+    final Serde<Movie> valueSpecificAvroSerde = new SpecificAvroSerde<>();
+    valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+
+    KStream<String, Movie> movieStream = builder.<String, Movie>stream(movieTopic);
+*/
+
+    final KStream<String, Movie2> movieStream =
+
+            builder.stream(movieTopic,
                     Consumed.with(
                             Serdes.String(),
-                            ticketSaleSerde)
+                            movieSerde)
             );
 
-    final KTable<String, Long> wordCounts = textLines
-            // Split each text line, by whitespace, into words.  The text lines are the record
-            // values, i.e. we can ignore whatever data is in the record keys and thus invoke
-            // `flatMapValues()` instead of the more generic `flatMap()`.
-//            .flatMapValues(value -> Arrays.asList(pattern.split(value.toLowerCase())))
-// Set key to title and value to ticket value
-            .map((k, v) -> new KeyValue<>(v.getTitle(), v.getTickettotalvalue()))
-            .peek((key, value) -> System.out.println("kStream : key={"+key+"}, value={"+value+"}"))
-            // Group the split data by word so that we can subsequently count the occurrences per word.
-            // This step re-keys (re-partitions) the input data, with the new record key being the words.
 
-            // Note: No need to specify explicit serdes because the resulting key and value types
-            // (String and String) match the application's default serdes.
-
-            // Group by title
-            .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()))
-//            .reduce(Integer::sum);
-
-//        .groupBy((keyIgnored, word) -> word)
-            // Count the occurrences of each word (record key).
-//            .count();
-            // Apply SUM aggregation
-            .reduce(Long::sum);
-
-    //        .toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
-    wordCounts.toStream().to(outputTopic, Produced.with(Serdes.String(), Serdes.Long()));
+    System.out.println("XXXXXXXXXXXXXXXXXXXX");
 
 
-    KGroupedStream<String, Long> grouped = textLines
-            // Split each text line, by whitespace, into words.  The text lines are the record
-            // values, i.e. we can ignore whatever data is in the record keys and thus invoke
-            // `flatMapValues()` instead of the more generic `flatMap()`.
-//            .flatMapValues(value -> Arrays.asList(pattern.split(value.toLowerCase())))
-// Set key to title and value to ticket value
-            .map((k, v) -> new KeyValue<>(v.getTitle(), v.getTickettotalvalue()))
-            .peek((key, value) -> System.out.println("KGroupedStream : key={"+key+"}, value={"+value+"}"))
-            // Group the split data by word so that we can subsequently count the occurrences per word.
-            // This step re-keys (re-partitions) the input data, with the new record key being the words.
+    movieStream.map((key, movie) -> new KeyValue<>(String.valueOf(movie.getId()), movie))
 
-            // Note: No need to specify explicit serdes because the resulting key and value types
-            // (String and String) match the application's default serdes.
 
-            // Group by title
-            .groupByKey(Grouped.with(Serdes.String(), Serdes.Long()));
-//            .reduce(Integer::sum);
+            .peek((key, value) -> System.out.println("kStream : key="+key+", value="+value+" "+value.getClass().getName()  ));
 
-//        .groupBy((keyIgnored, word) -> word)
-            // Count the occurrences of each word (record key).
-//            .count();
-            // Apply SUM aggregation
+    System.out.println("XXXXXXXXXXXXXXXXXXXX");
 
-    grouped
-            .windowedBy(TimeWindows.of(Duration.ofMinutes(1)).grace(Duration.ofMillis(0)))
-//            .count()
-            .reduce(Long::sum)
-            .suppress(Suppressed.untilWindowCloses(Suppressed.BufferConfig.unbounded()))
-            //.filter((windowedUserId, count) -> count < 3)
-            .toStream()
-//            .peek((key, value) -> System.out.println("KGroupedStream2 : key={"+key+"}, value={"+value+"}"));
-            .foreach((windowedUserId, count) -> System.out.println(new Date()+"ZZZZZZZZZZZZZZZZZZZZ "+windowedUserId.window()+" "+ windowedUserId.key()+" "+count));
+
+//    movieStream.to(rekeyedMovieTopic);
+    movieStream.to(rekeyedMovieTopic, Produced.with(Serdes.String(), movieSerde));
+//    movieStream.to(rekeyedMovieTopic, Produced.with(Serdes.String(), Serdes.String()));
+
+    /*
+    KTable<String, Movie> movies = builder.table(rekeyedMovieTopic);
+
+    KStream<String, Rating> ratings = builder.<String, Rating>stream(ratingTopic)
+            .map((key, rating) -> new KeyValue<>(String.valueOf(rating.getId()), rating));
+
+    KStream<String, RatedMovie> ratedMovie = ratings.join(movies, joiner);
+
+//    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedMovieAvroSerde(allProps)));
+//    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), Serdes.String()));
+    ratedMovie.to(ratedMoviesTopic);
+
+*/
 
   }
+
+/*
+  private static SpecificAvroSerde<RatedMovie> ratedMovieAvroSerde(Properties allProps) {
+    SpecificAvroSerde<RatedMovie> movieAvroSerde = new SpecificAvroSerde<>();
+    movieAvroSerde.configure((Map)allProps, false);
+    return movieAvroSerde;
+  }
+
+  */
 }

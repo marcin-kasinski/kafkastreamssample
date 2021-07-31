@@ -27,14 +27,15 @@ public class JsonPOJODeserializer<T> implements Deserializer<T> {
     @Override
     public T deserialize(String topic, byte[] bytes) {
 
-//        System.out.println(">>>>>>>>>>>>>>>>>>>deserialize");
+        System.out.println(">>>>>>>>>>>>>>>>>>>deserialize");
+        System.out.println(">>>>>>>>>>>>>>>>>>>deserialize "+new String(bytes));
 
         if (bytes == null)
             return null;
 
         T data;
         try {
-//            System.out.println(">>>>>>>>>>>>>>>>>>>try "+ tClass.getName());
+            System.out.println(">>>>>>>>>>>>>>>>>>>try "+ tClass.getName());
             data = objectMapper.readValue(bytes, tClass);
         } catch (Exception e) {
 //            System.out.println(">>>>>>>>>>>>>>>>>>>exception");

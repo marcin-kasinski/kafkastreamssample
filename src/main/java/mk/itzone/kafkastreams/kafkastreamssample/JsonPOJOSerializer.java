@@ -23,13 +23,18 @@ public class JsonPOJOSerializer<T> implements Serializer<T> {
 
     @Override
     public byte[] serialize(String topic, T data) {
+
+        System.out.println(">>>>>>>>>>>>>>>>>>>serialize");
+        System.out.println(">>>>>>>>>>>>>>>>>>>serialize "+data.toString());
+
+
         if (data == null)
             return null;
 
         try {
             return objectMapper.writeValueAsBytes(data);
         } catch (Exception e) {
-            throw new SerializationException("Error serializing JSON message", e);
+            throw new SerializationException(">>>>>>>>>>>>>>>>>>> Error serializing JSON message", e);
         }
     }
 
