@@ -9,6 +9,10 @@ import org.apache.kafka.streams.kstream.ValueJoiner;
 public class MovieRatingJoiner implements ValueJoiner<Rating, Movie, RatedMovie> {
 
     public RatedMovie apply(Rating rating, Movie movie) {
+
+
+        System.out.println("MovieRatingJoiner "+rating+ " / "+ movie);
+
         return RatedMovie.newBuilder()
                 .setId(movie.getId())
                 .setTitle(movie.getTitle())

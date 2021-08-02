@@ -6,6 +6,7 @@ package mk.itzone.kafkastreams.kafkastreamssample;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 //import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
 //import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
+import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import mk.itzone.kafkastreams.avro.Movie;
 import mk.itzone.kafkastreams.avro.RatedMovie;
 import mk.itzone.kafkastreams.avro.Rating;
@@ -26,6 +27,7 @@ import org.apache.kafka.streams.kstream.*;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 //import static io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG;
 
@@ -151,6 +153,18 @@ MOVIES
 {"id": 128, "title": "The Big Lebowski", "releaseyear": 1998}
 {"id": 780, "title": "Super Mario Bros.", "releaseyear": 1993}
 
+RATINGS
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic ratingTopic"
+
+{"id": 294, "rating": 8.2}
+{"id": 294, "rating": 8.5}
+{"id": 354, "rating": 9.9}
+{"id": 354, "rating": 9.7}
+{"id": 782, "rating": 7.8}
+{"id": 782, "rating": 7.7}
+{"id": 128, "rating": 8.7}
+{"id": 128, "rating": 8.4}
+{"id": 780, "rating": 2.1}
 
 ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
@@ -159,7 +173,9 @@ ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","
 ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "echo '{"title":"Die Hard","salets":"2019-07-18T10:01:00Z","tickettotalvalue":12}' | sudo  /usr/local/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --producer.config /usr/local/kafka/config/admin.properties --topic mkin"
 
 
-ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true --property value.deserializer=org.apache.kafka.common.serialization.LongDeserializer --topic mkout"
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true  --topic rekeyedMovieTopic"
+
+ssh centos@kafka-1.non-prod.cloud.corp.stokrotka.pl "sudo /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka-1.non-prod.cloud.corp.stokrotka.pl:9093 --consumer.config /usr/local/kafka/config/admin.properties --from-beginning --property print.key=true  --topic ratedMoviesTopic"
 
 mvn clean generate-sources install -DskipTests && java -jar target/kafkastreamsample-0.0.1-SNAPSHOT-jar-with-dependencies.jar
 
@@ -235,8 +251,26 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
 
     // Specify default (de)serializers for record keys and for record values.
-//    streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-//    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
+    streamsConfiguration.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+
+
+
+    final Map<String, String> serdeConfig = new HashMap<>();
+
+    streamsConfiguration.put("schema.registry.url", "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+    streamsConfiguration.put("schema.registry.ssl.truststore.location", "server.truststore.jks");
+    streamsConfiguration.put("schema.registry.ssl.truststore.password", "secret");
+
+    streamsConfiguration.put("key.converter.schema.registry.url", "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+    streamsConfiguration.put("key.converter.schema.registry.ssl.truststore.location", "server.truststore.jks");
+    streamsConfiguration.put("key.converter.schema.registry.ssl.truststore.password", "secret");
+
+    streamsConfiguration.put("value.converter.schema.registry.url", "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+    streamsConfiguration.put("value.converter.schema.registry.ssl.truststore.location", "server.truststore.jks");
+    streamsConfiguration.put("value.converter.schema.registry.ssl.truststore.password", "secret");
+
+    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,SpecificAvroSerde.class);
+//    streamsConfiguration.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,ratingSerde().getClass().getName());
     // Records should be flushed every 10 seconds. This is less than the default
     // in order to keep this example interactive.
     streamsConfiguration.put(StreamsConfig.COMMIT_INTERVAL_MS_CONFIG, 10 * 1000);
@@ -255,6 +289,13 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     streamsConfiguration.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SSL");
     streamsConfiguration.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, "server.truststore.jks");
     streamsConfiguration.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, "secret");
+
+    streamsConfiguration.put("javax.net.ssl.trustStore", "server.truststore.jks");
+    streamsConfiguration.put("javax.net.ssl.trustStorePassword", "secret");
+
+    streamsConfiguration.put("schema.registry.ssl.truststore.location", "server.truststore.jks");
+    streamsConfiguration.put("schema.registry.ssl.truststore.password", "secret");
+
     streamsConfiguration.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, "client.jks");
     streamsConfiguration.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, "secret");
     streamsConfiguration.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, "secret");
@@ -290,60 +331,188 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
 
     Map<String, Object> serdeProps = new HashMap<>();
-    serdeProps.put("JsonPOJOClass", Movie2.class);
+    serdeProps.put("JsonPOJOClass", Movie.class);
+
+    Map<String, Object> serdePropsRating = new HashMap<>();
+    serdePropsRating.put("JsonPOJOClass", Rating.class);
+
+    Map<String, Object> serdePropsRated = new HashMap<>();
+    serdePropsRated.put("JsonPOJOClass", RatedMovie.class);
 
 
-    final Serializer<Movie2> movieSerializer = new JsonPOJOSerializer<>();
+    final Serializer<Movie> movieSerializer = new JsonPOJOSerializer<>();
     movieSerializer.configure(serdeProps, false);
-
-    final Deserializer<Movie2> movieDeserializer = new JsonPOJODeserializer<>();
+    final Deserializer<Movie> movieDeserializer = new JsonPOJODeserializer<>();
     movieDeserializer.configure(serdeProps, false);
+    final Serde<Movie> movieSerde = Serdes.serdeFrom(movieSerializer, movieDeserializer);
 
-    final Serde<Movie2> movieSerde = Serdes.serdeFrom(movieSerializer, movieDeserializer);
+    final Serializer<Rating> ratingSerializer = new JsonPOJOSerializer<>();
+    ratingSerializer.configure(serdePropsRating, false);
+    final Deserializer<Rating> ratingDeserializer = new JsonPOJODeserializer<>();
+    ratingDeserializer.configure(serdePropsRating, false);
+    final Serde<Rating> ratingSerde = Serdes.serdeFrom(ratingSerializer, ratingDeserializer);
 
-    MovieRatingJoiner joiner = new MovieRatingJoiner();
 
-/*
+    final Serializer<RatedMovie> ratedSerializer = new JsonPOJOSerializer<>();
+    ratedSerializer.configure(serdePropsRated, false);
+    final Deserializer<RatedMovie> ratedDeserializer = new JsonPOJODeserializer<>();
+    ratedDeserializer.configure(serdePropsRated, false);
+    final Serde<RatedMovie> ratedSerde = Serdes.serdeFrom(ratedSerializer, ratedDeserializer);
+
+
+
+
+
+
+    final MovieRatingJoiner joiner = new MovieRatingJoiner();
+
     // When you want to override serdes explicitly/selectively
-    final Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url",
-            "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
-    final Serde<Movie> valueSpecificAvroSerde = new SpecificAvroSerde<>();
-    valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+//    final Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url",
+//            "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
 
-    KStream<String, Movie> movieStream = builder.<String, Movie>stream(movieTopic);
-*/
+    final Map<String, String> serdeConfig = new HashMap<>();
 
-    final KStream<String, Movie2> movieStream =
+    serdeConfig.put("schema.registry.url", "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+
+    serdeConfig.put("schema.registry.ssl.truststore.location", "server.truststore.jks");
+    serdeConfig.put("schema.registry.ssl.truststore.password", "secret");
+
+
+    final SpecificAvroSerde<Movie> movieSpecificAvroSerde = new SpecificAvroSerde<>();
+    movieSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+
+    final SpecificAvroSerde<Rating> ratingSpecificAvroSerde = new SpecificAvroSerde<>();
+    ratingSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+
+    final SpecificAvroSerde<RatedMovie> ratedMovieAvroSerde = new SpecificAvroSerde<>();
+    ratedMovieAvroSerde.configure((Map)serdeConfig, false);
+
+
+//    KStream<String, Movie> movieStream = builder.<String, Movie>stream(movieTopic);
+
+    final KStream<String, Movie> movieStream =
 
             builder.stream(movieTopic,
                     Consumed.with(
                             Serdes.String(),
                             movieSerde)
-            );
-
-
-    System.out.println("XXXXXXXXXXXXXXXXXXXX");
-
-
-    movieStream.map((key, movie) -> new KeyValue<>(String.valueOf(movie.getId()), movie))
+            )
+                    .map((key, movie) -> new KeyValue<>(String.valueOf(movie.getId()), movie))
 
 
             .peek((key, value) -> System.out.println("kStream : key="+key+", value="+value+" "+value.getClass().getName()  ));
 
-    System.out.println("XXXXXXXXXXXXXXXXXXXX");
+
 
 
 //    movieStream.to(rekeyedMovieTopic);
-    movieStream.to(rekeyedMovieTopic, Produced.with(Serdes.String(), movieSerde));
-//    movieStream.to(rekeyedMovieTopic, Produced.with(Serdes.String(), Serdes.String()));
+    movieStream.to(rekeyedMovieTopic, Produced.with(Serdes.String(), movieSpecificAvroSerde));
+
+
+//    KTable<String, Movie> movies = builder.table(rekeyedMovieTopic);
+    KStream<String, Movie> movies = builder.stream(rekeyedMovieTopic,
+            Consumed.with(
+                    Serdes.String(),
+                    movieSpecificAvroSerde)
+    )
+//            .map((key, rating) -> new KeyValue<>(String.valueOf(rating.getId()), rating))
+            .peek((key, value) -> System.out.println("kStream rekeyed : key="+key+", value="+value+" "+value.getClass().getName()  ));
+
+//    KStream<String, Rating> ratings = builder.<String, Rating>stream(ratingTopic)
+    KStream<String, Rating> ratings = builder.stream(ratingTopic,
+            Consumed.with(
+                    Serdes.String(),
+                    ratingSerde)
+    )
+            .map((key, rating) -> new KeyValue<>(String.valueOf(rating.getId()), rating))
+            .peek((key, value) -> System.out.println("kStream : key="+key+", value="+value+" "+value.getClass().getName()  ));
+/*
+    KStream<String, Rating> ratings2 = builder.stream(ratingTopic,
+            Consumed.with(
+                    Serdes.String(),
+                    ratingSerde)
+    )
+            .map((key, rating) -> new KeyValue<>(String.valueOf(rating.getId()), rating))
+            .peek((key, value) -> System.out.println("kStream2 : key="+key+", value="+value+" "+value.getClass().getName()  ));
+
+
+    KStream<String, RatedMovie> ratingsjoiner = ratings.join(movies,
+
+            (rating1, rating2) -> {
+
+              System.out.println("MovieRatingJoiner "+rating1+ " / "+ rating2);
+              return RatedMovie.newBuilder()
+                      .setId(294)
+                      .setTitle("XXX")
+                      .setReleaseyear(1990)
+                      .setRating(8.2)
+                      .build();
+
+            }
+
+
+    );
+
+
+*/
+
+
+    KStream<String, RatedMovie> ratedMovie = ratings.join(movies,joiner
+            ,
+            JoinWindows.of(Duration.ofMinutes(5)),
+            Joined.with(
+                    Serdes.String(),
+                    ratingSpecificAvroSerde,
+                    movieSpecificAvroSerde)
+
+
+
+    )     .peek((key, value) -> System.out.println("kStreamrated : key="+key+", value="+value+" "+value.getClass().getName()  ));
+
+
+
+    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedMovieAvroSerde));
+
 
     /*
-    KTable<String, Movie> movies = builder.table(rekeyedMovieTopic);
+    KStream<String, RatedMovie> ratedMovie = ratings.join(movies,
 
-    KStream<String, Rating> ratings = builder.<String, Rating>stream(ratingTopic)
-            .map((key, rating) -> new KeyValue<>(String.valueOf(rating.getId()), rating));
+            (rating, movie) -> {
 
-    KStream<String, RatedMovie> ratedMovie = ratings.join(movies, joiner);
+              System.out.println("MovieRatingJoiner "+rating.toString()+ " / "+ movie.toString());
+              return RatedMovie.newBuilder()
+                      .setId(movie.getId())
+                      .setTitle(movie.getTitle())
+                      .setReleaseyear(movie.getReleaseyear())
+                      .setRating(rating.getRating())
+                      .build();
+
+            }
+
+            ,
+            JoinWindows.of(Duration.ofMinutes(5)),
+            Joined.with(
+                    Serdes.String(),
+                    SpecificAvroSerde,
+                    SpecificAvroSerde)
+
+            )
+
+    .to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedMovieAvroSerde));
+
+*/
+
+
+
+
+
+
+
+
+
+
+
+    /*
 
 //    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedMovieAvroSerde(allProps)));
 //    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), Serdes.String()));
@@ -353,12 +522,50 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
   }
 
-/*
+
   private static SpecificAvroSerde<RatedMovie> ratedMovieAvroSerde(Properties allProps) {
     SpecificAvroSerde<RatedMovie> movieAvroSerde = new SpecificAvroSerde<>();
     movieAvroSerde.configure((Map)allProps, false);
     return movieAvroSerde;
   }
 
-  */
+
+  private static Serde<Rating> ratingSerde() {
+
+    Map<String, Object> serdePropsRating = new HashMap<>();
+    serdePropsRating.put("JsonPOJOClass", Rating.class);
+
+    final Serializer<Rating> ratingSerializer = new JsonPOJOSerializer<>();
+    ratingSerializer.configure(serdePropsRating, false);
+    final Deserializer<Rating> ratingDeserializer = new JsonPOJODeserializer<>();
+    ratingDeserializer.configure(serdePropsRating, false);
+    final Serde<Rating> ratingSerde = Serdes.serdeFrom(ratingSerializer, ratingDeserializer);
+    return ratingSerde;
+
+  }
+
+    private static SpecificAvroSerde<RatedMovie> ratedMovieAvroSerde() {
+
+
+    final Map<String, String> serdeConfig = new HashMap<>();
+
+    serdeConfig.put("schema.registry.url", "https://schema-registry.non-prod.cloud.corp.stokrotka.pl");
+
+    serdeConfig.put("schema.registry.ssl.truststore.location", "server.truststore.jks");
+    serdeConfig.put("schema.registry.ssl.truststore.password", "secret");
+
+
+    SpecificAvroSerde<RatedMovie> movieAvroSerde = new SpecificAvroSerde<>();
+    movieAvroSerde.configure((Map)serdeConfig, false);
+    return movieAvroSerde;
+  }
+
+
+
+
+
+
+
+
+
 }

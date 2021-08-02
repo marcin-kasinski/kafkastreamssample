@@ -38,7 +38,7 @@ public class JsonPOJODeserializer<T> implements Deserializer<T> {
             System.out.println(">>>>>>>>>>>>>>>>>>>try "+ tClass.getName());
             data = objectMapper.readValue(bytes, tClass);
         } catch (Exception e) {
-//            System.out.println(">>>>>>>>>>>>>>>>>>>exception");
+            System.out.println(">>>>>>>>>>>>>>>>>>>exception" +e);
             throw new SerializationException(e);
         }
 
