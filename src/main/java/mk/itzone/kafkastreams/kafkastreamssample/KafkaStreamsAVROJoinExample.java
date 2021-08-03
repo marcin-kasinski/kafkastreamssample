@@ -457,7 +457,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 
     KStream<String, mk.itzone.kafkastreams.avro.RatedMovie2> ratedMovie = ratings.join(movies,joiner
             ,
-            JoinWindows.of(Duration.ofSeconds(30)),
+            JoinWindows.of(Duration.ofSeconds(30)).grace(Duration.ofSeconds(30)),
             Joined.with(
                     Serdes.String(),
                     ratingSpecificAvroSerde,
