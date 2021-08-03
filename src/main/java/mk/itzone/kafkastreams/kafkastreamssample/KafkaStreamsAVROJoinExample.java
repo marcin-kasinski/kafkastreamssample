@@ -7,10 +7,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 //import io.confluent.kafka.serializers.AbstractKafkaAvroSerDeConfig;
 //import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
-import mk.itzone.kafkastreams.avro.Movie;
-import mk.itzone.kafkastreams.avro.RatedMovie;
-import mk.itzone.kafkastreams.avro.Rating;
-import mk.itzone.kafkastreams.avro.TicketSale;
+import mk.itzone.kafkastreams.avro.*;
+import mk.itzone.kafkastreams.avro.RatedMovie2;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.config.SslConfigs;
@@ -337,7 +335,7 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     serdePropsRating.put("JsonPOJOClass", Rating.class);
 
     Map<String, Object> serdePropsRated = new HashMap<>();
-    serdePropsRated.put("JsonPOJOClass", RatedMovie.class);
+    serdePropsRated.put("JsonPOJOClass", RatedMovie2.class);
 
 
     final Serializer<Movie> movieSerializer = new JsonPOJOSerializer<>();
@@ -353,11 +351,11 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
     final Serde<Rating> ratingSerde = Serdes.serdeFrom(ratingSerializer, ratingDeserializer);
 
 
-    final Serializer<RatedMovie> ratedSerializer = new JsonPOJOSerializer<>();
+    final Serializer<RatedMovie2> ratedSerializer = new JsonPOJOSerializer<>();
     ratedSerializer.configure(serdePropsRated, false);
-    final Deserializer<RatedMovie> ratedDeserializer = new JsonPOJODeserializer<>();
+    final Deserializer<RatedMovie2> ratedDeserializer = new JsonPOJODeserializer<>();
     ratedDeserializer.configure(serdePropsRated, false);
-    final Serde<RatedMovie> ratedSerde = Serdes.serdeFrom(ratedSerializer, ratedDeserializer);
+    final Serde<RatedMovie2> ratedSerde = Serdes.serdeFrom(ratedSerializer, ratedDeserializer);
 
 
 
@@ -457,21 +455,20 @@ mvn clean generate-sources install -DskipTests && java -cp target/kafkastreamsam
 */
 
 
-    KStream<String, RatedMovie> ratedMovie = ratings.join(movies,joiner
+    KStream<String, mk.itzone.kafkastreams.avro.RatedMovie2> ratedMovie = ratings.join(movies,joiner
             ,
-            JoinWindows.of(Duration.ofMinutes(5)),
+            JoinWindows.of(Duration.ofSeconds(30)),
             Joined.with(
                     Serdes.String(),
                     ratingSpecificAvroSerde,
                     movieSpecificAvroSerde)
+    )     .peek((key, value) -> System.out.println("kStream_rated : key="+key+", value="+value+" "+value.getClass().getName()  ))
+            .map((key, ratedMovieOBJ) ->
+                    new KeyValue<>(key, new RatedMovie2(ratedMovieOBJ.getId(),ratedMovieOBJ.getTitle(),ratedMovieOBJ.getReleaseyear(),ratedMovieOBJ.getRating())))
+.peek((key, value) -> System.out.println("kStream_rated raw : key="+key+", value="+value.toString()+" "+value.getClass().getName()  ));
 
-
-
-    )     .peek((key, value) -> System.out.println("kStreamrated : key="+key+", value="+value+" "+value.getClass().getName()  ));
-
-
-
-    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedMovieAvroSerde));
+    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedSerde));
+//    ratedMovie.to(ratedMoviesTopic, Produced.with(Serdes.String(), ratedSerde));
 
 
     /*
